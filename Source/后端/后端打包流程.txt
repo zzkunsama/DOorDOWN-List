@@ -1,0 +1,82 @@
+————————安装docker-compose环境：
+现在公网通过yum安装的最新版本docker已经自带了docker compose命令（不带-）
+具体操作命令如下：
+# 安装依赖包
+sudo yum install -y yum-utils device-mapper-persistent-data lvm2
+# 添加 Docker 官方仓库
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+# 安装最新版 Docker Engine（包含 CLI 和 Containerd）
+sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# 启动 Docker 服务
+sudo systemctl start docker
+# 设置开机自启
+sudo systemctl enable docker
+# 查看 Docker 版本（应显示 20.10+ 或更高版本）
+docker --version
+# 验证 Compose 命令
+docker compose version
+
+————————安装Node.js环境：
+# 安装Node.js 16.x（LTS版本，需要与Docker镜像版本一致，后续下载镜像就用16）
+curl -fsSL https://rpm.nodesource.com/setup_16.x | bash -
+# 安装Node.js和npm
+yum install -y nodejs
+node -v  # 应显示v16.x.x
+npm -v   # 应显示对应的npm版本（通常6.x或8.x）
+
+————————安装依赖的包：
+# 初始化package.json（如果没有）
+npm init -y
+# 本地安装项目依赖（会下载到node_modules）
+npm install express@4.18.2 cors@2.8.5
+
+————————将JS打包到容器镜像中：
+1.编写.dockerignore文件
+npm-debug.log
+.git
+.gitignore
+.dockerignore
+Dockerfile
+2.编写Dockerfile文件
+# 使用与本地Node.js版本一致的基础镜像（避免版本兼容问题）
+FROM node:16-alpine
+# 设置工作目录
+WORKDIR /app
+# 直接复制本地所有文件（包括node_modules）
+COPY . .
+# 暴露应用端口
+EXPOSE 3000
+# 启动命令
+CMD ["node", "server.js"]
+3.JS文件放进去后运行打包命令
+docker build -t task-manager .
+4.查看是否成功
+docker images
+
+————————docker镜像的导出和导入：
+docker save -o task-manager.tar task-manager:latest
+docker load -i [tar文件名]
+
+————————本镜像使用方式：
+docker run -d \
+  -p 3000:3000 \
+  -v taskdata:/app/data \
+  -e ADMIN_TOKEN="admin" \
+  --name task-manager \
+  task-manager
+  docker volume ls
+  docker exec -it task-manager cat /app/api-keys.json
+
+————————本JS调用和使用方式：
+http://IP:3000
+创建账户：
+curl -v -X POST -H "Admin-Token: admin" http://localhost:3000/api/generate-key
+
+————————CentOS7网络环境初始化调整（如果无法访问大概率是这个）：
+systemctl stop firewalld
+setenforce 0
+systemctl stop NetworkManager
+systemctl disable NetworkManager
+systemctl disable firewalld
+sed -i "s/SELINUX=enforcing/SELINUX=disabled/g" /etc/selinux/config
+echo 1 > /proc/sys/net/ipv4/ip_forward
